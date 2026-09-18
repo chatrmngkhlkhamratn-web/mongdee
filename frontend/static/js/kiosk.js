@@ -109,6 +109,42 @@ function buildProductVideo(p, className) {
   return video;
 }
 
+// Turns a YouTube/Vimeo/Facebook watch link into its autoplay embed URL, so
+// the popup can play the attached video inline instead of just linking out.
+// Returns null for URLs from providers we don't know how to embed (or that
+// fail to parse) — callers fall back to a plain external link for those.
+function videoEmbedUrl(rawUrl) {
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch (err) {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\.|^m\./, "");
+  if (host === "youtube.com") {
+    const id = u.searchParams.get("v") || u.pathname.match(/^\/shorts\/([\w-]+)/)?.[1];
+    if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1`;
+  } else if (host === "youtu.be") {
+    const id = u.pathname.slice(1);
+    if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1`;
+  } else if (host === "vimeo.com") {
+    const id = u.pathname.split("/").filter(Boolean)[0];
+    if (id) return `https://player.vimeo.com/video/${id}?autoplay=1&muted=1`;
+  } else if (host === "facebook.com" || host === "fb.watch") {
+    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(rawUrl)}&autoplay=true&mute=1`;
+  }
+  return null;
+}
+
+function buildVideoEmbed(embedUrl, title) {
+  const iframe = el("iframe");
+  iframe.src = embedUrl;
+  iframe.title = title;
+  iframe.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+  iframe.allowFullscreen = true;
+  return iframe;
+}
+
 function buildDetailFields(container, p) {
   const fields = [
     ["แหล่งที่มา", p.origin],
@@ -145,7 +181,7 @@ function renderMatched(result) {
   metaRow.append(el("span", "pill ok", result.manually_confirmed ? "ยืนยันโดยผู้ใช้" : `ความคล้าย ${confPct}%`));
   infoPane.append(metaRow);
 
-  const openBtn = el("button", "match-detail-btn", (p.video_path || p.video_url) ? "ดูรายละเอียด · วิดีโอ" : "ดูรายละเอียด");
+  const openBtn = el("button", "match-detail-btn", (p.video_path || p.video_link) ? "ดูรายละเอียด · วิดีโอ" : "ดูรายละเอียด");
   openBtn.type = "button";
   openBtn.addEventListener("click", () => openPopup(result, true));
   infoPane.append(openBtn);
@@ -217,12 +253,9 @@ function buildPopupContent(result) {
 
   const media = el("div", "popup-media");
   const video = buildProductVideo(p, "");
-  if (video) {
-    media.append(video);
-  } else {
-    const img = productImage(p, "");
-    if (img) media.append(img);
-  }
+  const embedUrl = !video && p.video_link ? videoEmbedUrl(p.video_link) : null;
+  const defaultNode = video || (embedUrl ? buildVideoEmbed(embedUrl, p.name) : productImage(p, ""));
+  mountMediaWithSpinToggle(media, { defaultNode, frameUrls: p.spin_frames, altText: p.name });
   if (media.childElementCount) popupContent.append(media);
 
   const body = el("div", "popup-body");
@@ -235,16 +268,26 @@ function buildPopupContent(result) {
 
   buildDetailFields(body, p);
 
-  if (p.video_url) {
-    const link = el("a", "video-cta");
-    link.href = p.video_url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.append(el("span", "video-cta-icon", "▶"), el("span", "", "ดูวิดีโอ / ลิงก์เพิ่มเติม"));
-    const actions = el("div", "popup-actions");
-    actions.append(link);
-    body.append(actions);
+  const actions = el("div", "popup-actions");
+  if (p.video_link && !embedUrl) {
+    // Dedicated video link, but from a provider we don't know how to embed
+    // (see videoEmbedUrl) — fall back to an external link.
+    const videoLink = el("a", "video-cta");
+    videoLink.href = p.video_link;
+    videoLink.target = "_blank";
+    videoLink.rel = "noopener";
+    videoLink.append(el("span", "video-cta-icon", "▶"), el("span", "", "ดูวิดีโอ"));
+    actions.append(videoLink);
   }
+  if (p.video_url) {
+    const contactLink = el("a", "video-cta");
+    contactLink.href = p.video_url;
+    contactLink.target = "_blank";
+    contactLink.rel = "noopener";
+    contactLink.append(el("span", "video-cta-icon", "🔗"), el("span", "", "ช่องทางติดต่อ / ข้อมูลเพิ่มเติม"));
+    actions.append(contactLink);
+  }
+  if (actions.childElementCount) body.append(actions);
 
   popupContent.append(body);
 }
@@ -362,9 +405,45 @@ async function pollCameraStatus() {
   }
 }
 
+const kioskCamera = document.getElementById("kioskCamera");
+const camCrop = document.getElementById("camCrop");
+
+// Sizes cam-frame to the largest 9:16 box that fits inside cam-pane. Done in
+// JS (not CSS aspect-ratio) because no CSS-only rule reliably constrains a
+// fixed-ratio box on both axes inside a flexible sibling layout. Must run
+// before applyCameraCrop below, which measures camCrop's now-definite size.
+const camFrame = document.getElementById("camFrame");
+function fitCamFrame() {
+  const pane = camFrame.parentElement;
+  const pw = pane.clientWidth;
+  const ph = pane.clientHeight;
+  const targetAR = 9 / 16;
+  let w = ph * targetAR;
+  let h = ph;
+  if (w > pw) {
+    w = pw;
+    h = pw / targetAR;
+  }
+  camFrame.style.width = `${w}px`;
+  camFrame.style.height = `${h}px`;
+}
+fitCamFrame();
+
+function refreshCameraCrop() {
+  if (kioskCamera.naturalWidth) applyCameraCrop(camCrop, kioskCamera);
+}
+if (kioskCamera.complete && kioskCamera.naturalWidth) {
+  refreshCameraCrop();
+} else {
+  kioskCamera.addEventListener("load", refreshCameraCrop, { once: true });
+}
+window.addEventListener("resize", () => {
+  fitCamFrame();
+  refreshCameraCrop();
+});
+
 renderIdle();
 pollRecognition();
-positionDetectBox(detectBox);
 pollCameraStatus();
 setInterval(pollRecognition, 1000);
 setInterval(pollCameraStatus, 2000);

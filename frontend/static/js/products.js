@@ -39,10 +39,37 @@ function productImage(p) {
   return img;
 }
 
+// Turns a YouTube/Vimeo/Facebook watch link into its autoplay embed URL —
+// see the identical helper in kiosk.js for the customer-facing scan flow.
+function videoEmbedUrl(rawUrl) {
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch (err) {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\.|^m\./, "");
+  if (host === "youtube.com") {
+    const id = u.searchParams.get("v") || u.pathname.match(/^\/shorts\/([\w-]+)/)?.[1];
+    if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1`;
+  } else if (host === "youtu.be") {
+    const id = u.pathname.slice(1);
+    if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1`;
+  } else if (host === "vimeo.com") {
+    const id = u.pathname.split("/").filter(Boolean)[0];
+    if (id) return `https://player.vimeo.com/video/${id}?autoplay=1&muted=1`;
+  } else if (host === "facebook.com" || host === "fb.watch") {
+    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(rawUrl)}&autoplay=true&mute=1`;
+  }
+  return null;
+}
+
 function buildDetail(p) {
   popupContent.replaceChildren();
 
   const media = el("div", "popup-media");
+  const embedUrl = !p.video_path && p.video_link ? videoEmbedUrl(p.video_link) : null;
+  let defaultNode;
   if (p.video_path) {
     const video = el("video");
     video.src = "/" + p.video_path;
@@ -51,11 +78,18 @@ function buildDetail(p) {
     video.playsInline = true;
     video.muted = systemMuted;
     video.controls = true;
-    media.append(video);
+    defaultNode = video;
+  } else if (embedUrl) {
+    const iframe = el("iframe");
+    iframe.src = embedUrl;
+    iframe.title = p.name;
+    iframe.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    iframe.allowFullscreen = true;
+    defaultNode = iframe;
   } else {
-    const img = productImage(p);
-    if (img) media.append(img);
+    defaultNode = productImage(p);
   }
+  mountMediaWithSpinToggle(media, { defaultNode, frameUrls: p.spin_frames, altText: p.name });
   if (media.childElementCount) popupContent.append(media);
 
   const body = el("div", "popup-body");
@@ -82,16 +116,24 @@ function buildDetail(p) {
     body.append(el("div", "field-label", "เรื่องราว"));
     body.append(el("div", "story", p.story));
   }
-  if (p.video_url) {
-    const link = el("a", "video-cta");
-    link.href = p.video_url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.append(el("span", "video-cta-icon", "▶"), el("span", "", "ดูวิดีโอ / ลิงก์เพิ่มเติม"));
-    const actions = el("div", "popup-actions");
-    actions.append(link);
-    body.append(actions);
+  const actions = el("div", "popup-actions");
+  if (p.video_link && !embedUrl) {
+    const videoLink = el("a", "video-cta");
+    videoLink.href = p.video_link;
+    videoLink.target = "_blank";
+    videoLink.rel = "noopener";
+    videoLink.append(el("span", "video-cta-icon", "▶"), el("span", "", "ดูวิดีโอ"));
+    actions.append(videoLink);
   }
+  if (p.video_url) {
+    const contactLink = el("a", "video-cta");
+    contactLink.href = p.video_url;
+    contactLink.target = "_blank";
+    contactLink.rel = "noopener";
+    contactLink.append(el("span", "video-cta-icon", "🔗"), el("span", "", "ช่องทางติดต่อ / ข้อมูลเพิ่มเติม"));
+    actions.append(contactLink);
+  }
+  if (actions.childElementCount) body.append(actions);
   popupContent.append(body);
 }
 

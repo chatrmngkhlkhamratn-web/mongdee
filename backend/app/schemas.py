@@ -12,6 +12,7 @@ class ProductOut(BaseModel):
     process: Optional[str] = None
     story: Optional[str] = None
     video_url: Optional[str] = None
+    video_link: Optional[str] = None
     thumbnail_path: Optional[str] = None
     cover_image_path: Optional[str] = None
     video_path: Optional[str] = None
@@ -23,6 +24,11 @@ class ProductOut(BaseModel):
     # be re-scanned before the kiosk can recognize it. Only the list views
     # populate this; elsewhere it stays False.
     needs_reembed: bool = False
+    # Saved training-frame photos, in capture order, for the popup's 360
+    # spin viewer. Empty for products enrolled before frame images were
+    # kept (see db.get_product_frames) — the frontend falls back to a
+    # static cover/thumbnail image in that case.
+    spin_frames: list[str] = []
 
 
 class ProductUpdate(BaseModel):
@@ -33,6 +39,7 @@ class ProductUpdate(BaseModel):
     process: Optional[str] = None
     story: Optional[str] = None
     video_url: Optional[str] = None
+    video_link: Optional[str] = None
     price: Optional[float] = None
     production_date: Optional[str] = None
     expiry_date: Optional[str] = None
@@ -46,6 +53,7 @@ class EnrollConfirmRequest(BaseModel):
     process: Optional[str] = None
     story: Optional[str] = None
     video_url: Optional[str] = None
+    video_link: Optional[str] = None
     price: Optional[float] = None
     production_date: Optional[str] = None
     expiry_date: Optional[str] = None

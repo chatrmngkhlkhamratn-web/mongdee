@@ -34,7 +34,8 @@ const EDIT_FIELDS = [
   ["production_date", "วันผลิต", "input", "date"],
   ["expiry_date", "วันหมดอายุ", "input", "date"],
   ["story", "เรื่องราวของสินค้า", "textarea", null],
-  ["video_url", "ลิงก์ / วิดีโอนำเสนอ", "input", "url"],
+  ["video_link", "ลิงก์วิดีโอนำเสนอ (YouTube ฯลฯ)", "input", "url"],
+  ["video_url", "ลิงก์ช่องทางติดต่อ / ข้อมูลเพิ่มเติม", "input", "url"],
 ];
 
 function formatMoney(n) {
@@ -74,9 +75,12 @@ function buildCard(p) {
   const actions = el("div", "actions");
   const coverBtn = el("button", "secondary small", "รูปหน้าปก");
   const videoBtn = el("button", "secondary small", p.video_path ? "เปลี่ยนวิดีโอ" : "อัปโหลดวิดีโอ");
+  const exportBtn = el("button", "secondary small", "ส่งออก");
+  exportBtn.type = "button";
+  exportBtn.onclick = () => { window.location.href = `/api/products/${p.id}/export`; };
   const editBtn = el("button", "secondary small", "แก้ไข");
   const delBtn = el("button", "danger small", "ลบ");
-  actions.append(coverBtn, videoBtn, editBtn, delBtn);
+  actions.append(coverBtn, videoBtn, exportBtn, editBtn, delBtn);
   if (p.video_path) {
     const removeVideoBtn = el("button", "danger small", "ลบวิดีโอ");
     actions.append(removeVideoBtn);

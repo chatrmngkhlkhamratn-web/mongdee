@@ -42,7 +42,7 @@ async def correct(body: CorrectionRequest):
         raise HTTPException(409, "ผลสแกนเปลี่ยนไปแล้ว กรุณาเลือกจากผลล่าสุด")
     db.correct_scan_event(body.scan_event_id, body.product_id)
     await recognition_state.set(RecognitionResult(
-        status="matched", product=ProductOut(**dict(product)), scan_event_id=body.scan_event_id,
+        status="matched", product=ProductOut(**db.product_out_fields(product)), scan_event_id=body.scan_event_id,
         manually_confirmed=True, camera_generation=snap.generation, updated_at=time.time(),
     ))
     return {"ok": True}

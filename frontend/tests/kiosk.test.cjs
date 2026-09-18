@@ -6,6 +6,7 @@ class Element {
   constructor(tag = 'div') {
     this.tag = tag;
     this.children = [];
+    this.parentElement = null;
     this.style = {};
     this.classList = { toggle() {}, contains() { return false; }, remove() {} };
     this.renders = 0;
@@ -21,13 +22,18 @@ class Element {
 }
 const ids = new Map();
 const element = id => {
-  if (!ids.has(id)) ids.set(id, new Element());
+  if (!ids.has(id)) {
+    const node = new Element();
+    if (id === 'camFrame') node.parentElement = new Element();
+    ids.set(id, node);
+  }
   return ids.get(id);
 };
 let response = { status: 'idle', updated_at: 1 };
 let pendingTimeout = null;
 const context = vm.createContext({
   document: { getElementById: element, createElement: tag => new Element(tag), addEventListener() {} },
+  window: { addEventListener() {} },
   localStorage: { getItem() { return null; }, setItem() {} },
   fetch: async url => ({
     ok: true,
@@ -40,6 +46,7 @@ const context = vm.createContext({
   setInterval() {}, setTimeout(fn) { pendingTimeout = fn; return 1; }, clearTimeout() { pendingTimeout = null; }, AbortSignal, Intl, console,
 });
 vm.runInContext(fs.readFileSync('frontend/static/js/detect-box.js', 'utf8'), context);
+vm.runInContext(fs.readFileSync('frontend/static/js/spin-viewer.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('frontend/static/js/kiosk.js', 'utf8'), context);
 
 (async () => {

@@ -103,7 +103,7 @@ async def _run_scan(camera_manager: CameraManager) -> bool:
             return False
         _clear_pending_switch()
         scan_id = db.log_scan_event(best_id, best_score, True)
-        result = RecognitionResult(status=status, scan_event_id=scan_id, product=ProductOut(**dict(product)),
+        result = RecognitionResult(status=status, scan_event_id=scan_id, product=ProductOut(**db.product_out_fields(product)),
                                    confidence=best_score, candidates=candidates, camera_generation=initial.generation, updated_at=time.time())
     else:
         # Don't drop a good match to unknown/ambiguous on a single weak burst.

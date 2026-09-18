@@ -100,14 +100,23 @@ def _confirm_enrollment(session_id: str, body: EnrollConfirmRequest):
     if missing:
         raise HTTPException(400, "พบรหัสภาพที่ไม่ถูกต้องในชุดที่เลือก — กรุณาลองใหม่")
 
-    config.CAPTURES_DIR.mkdir(parents=True, exist_ok=True)
-    thumb_name = f"{uuid.uuid4().hex}.jpg"
-    thumb_frame_id = selected_ids[len(selected_ids) // 2]
-    # Cropped to the platform, not the whole desk — this is what shows on
-    # the kiosk display until/unless staff upload a nicer cover via /manage.
-    thumb_frame = camera_module.crop_to_roi(frames_by_id[thumb_frame_id])
-    if not cv2.imwrite(str(config.CAPTURES_DIR / thumb_name), thumb_frame):
-        raise HTTPException(500, "บันทึกภาพสินค้าไม่สำเร็จ กรุณาลองใหม่")
+    # Every selected frame is saved (not just one thumbnail) so the kiosk
+    # popup can play them back as a 360-style spin view — see
+    # db.get_product_frames. Cropped to the platform, not the whole desk,
+    # same as the old single-thumbnail behavior.
+    frames_dir = config.CAPTURES_DIR / "frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    frame_paths = []
+    for fid in selected_ids:
+        name = f"{uuid.uuid4().hex}.jpg"
+        cropped = camera_module.crop_to_roi(frames_by_id[fid])
+        if not cv2.imwrite(str(frames_dir / name), cropped):
+            raise HTTPException(500, "บันทึกภาพสินค้าไม่สำเร็จ กรุณาลองใหม่")
+        frame_paths.append(f"captures/frames/{name}")
+
+    # The middle angle doubles as the kiosk display thumbnail until/unless
+    # staff upload a nicer cover via /manage — no separate file needed.
+    thumb_path = frame_paths[len(frame_paths) // 2]
 
     product_id = db.create_product(
         name=body.name,
@@ -117,17 +126,19 @@ def _confirm_enrollment(session_id: str, body: EnrollConfirmRequest):
         process=body.process,
         story=body.story,
         video_url=body.video_url,
-        thumbnail_path=f"captures/{thumb_name}",
+        video_link=body.video_link,
+        thumbnail_path=thumb_path,
         price=body.price,
         production_date=body.production_date,
         expiry_date=body.expiry_date,
         embeddings=[embeddings_by_id[fid].tolist() for fid in selected_ids],
+        frame_image_paths=frame_paths,
     )
 
     vision.refresh_match_index()
     enroll_sessions.discard_session(session_id)
 
-    return ProductOut(**dict(db.get_product(product_id)))
+    return ProductOut(**db.product_out_fields(db.get_product(product_id)))
 
 
 @router.delete("/{session_id}")

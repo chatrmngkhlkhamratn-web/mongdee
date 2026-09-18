@@ -24,10 +24,20 @@
         ยังไม่มีภาพอ้างอิง "แท่นเปล่า" สำหรับกล้องนี้ ระบบจะรอจนกว่าจะบันทึกพื้นเปล่า
         ยกสินค้าและมือออกจากกรอบ รอภาพนิ่ง แล้วกดปุ่มด้านล่าง
       </div>
-      <div class="cam-box">
+      <h3 style="margin-top:0;">กรอบดิบ — ลากเพื่อปรับพื้นที่ตรวจจับ (ROI)</h3>
+      <div class="cam-box" id="rawBox">
         <img id="camFeed" src="/api/camera/stream" alt="live camera">
-        <div class="roi-box" id="roiBox"></div>
+        <div class="roi-box" id="roiBox">
+          <div class="roi-handle" data-corner="nw"></div>
+          <div class="roi-handle" data-corner="ne"></div>
+          <div class="roi-handle" data-corner="sw"></div>
+          <div class="roi-handle" data-corner="se"></div>
+        </div>
       </div>
+      <p class="hint">
+        ลากตรงกลางกรอบสีส้มเพื่อย้ายตำแหน่ง ลากจุดที่มุมเพื่อปรับขนาด — ให้ครอบคลุมเฉพาะแท่นหมุน
+        ไม่รวมของอื่นบนโต๊ะ ระบบบันทึกให้อัตโนมัติขณะลาก
+      </p>
 
       <div class="button-row" style="margin-top:0.75rem;">
         <button type="button" id="captureRefBtn">📸 บันทึกภาพพื้นเปล่า (ตอนนี้)</button>
@@ -37,16 +47,21 @@
         ระบบจะจำภาพนี้เป็น "ค่าว่างเริ่มต้น" และเทียบภาพสดกับภาพนี้ตลอด (ไม่ใช่ค่อย ๆ ปรับตัวเองแบบเดิม)
         ถ้าย้ายกล้อง เปลี่ยนแสง หรือของที่วางไว้ข้าง ๆ แท่นเปลี่ยนไป ให้กดใหม่อีกครั้ง
       </p>
-
-      <p class="hint">
-        กรอบสีส้มคือพื้นที่ที่ระบบใช้ตรวจจับสินค้า (ROI) — ปรับให้ครอบคลุมเฉพาะแท่นหมุน
-        ไม่รวมของอื่นบนโต๊ะ (ตำแหน่งกรอบเป็นค่าประมาณ อาจคลาดเคลื่อนเล็กน้อยตามสัดส่วนภาพจริงของกล้อง)
-      </p>
-      <p class="hint">เว้นพื้นที่พื้นหลังนอกกรอบเล็กน้อยเพื่อช่วยชดเชยแสง หากเปลี่ยนกรอบหรือมุมกล้องมาก
+      <p class="hint">เว้นพื้นที่พื้นหลังนอกกรอบเล็กน้อยเพื่อช่วยชดเชยแสง หากเปลี่ยนกรอบมาก
         ควรถ่ายภาพตัวอย่างสินค้าใหม่ เพราะภาพที่ใช้เทียบต้องมาจากมุมและกรอบเดียวกัน</p>
     </div>
 
     <div class="card">
+      <h3 style="margin-top:0;">ตัวอย่างที่ลูกค้าจะเห็น</h3>
+      <div class="preview-frame" id="previewFrame">
+        <div class="preview-crop" id="previewCrop">
+          <img id="previewFeed" src="/api/camera/stream" alt="preview">
+        </div>
+      </div>
+      <p class="hint">
+        กรอบนี้คือสัดส่วน 9:16 จริงที่ขึ้นจอลูกค้า — ROI จะแสดงครบเสมอ (อาจมีขอบดำถ้า ROI ไม่ใช่ 9:16 พอดี)
+      </p>
+
       <div class="calib-readout">
         <span>สถานะ:</span>
         <span class="pill" id="stateBadge">-</span>
@@ -62,24 +77,6 @@
         เส้นซ้ายคือเกณฑ์ "ตรวจไม่พบ" (off) เส้นขวาคือเกณฑ์ "ตรวจพบ" (on)
         ลองเอาของออก/วางของบนแท่น ดูตัวเลขว่างกับมีของต่างกันแค่ไหน แล้วตั้ง on/off ให้อยู่คนละฝั่งของค่าที่สังเกตได้
       </p>
-
-      <h3 style="margin-top:1.5rem;">กรอบตรวจจับ (ROI)</h3>
-      <div class="slider-row">
-        <div class="row-head"><span>ตำแหน่งซ้าย (x)</span><span id="roiXVal"></span></div>
-        <input type="range" id="roiX" min="0" max="0.95" step="0.01">
-      </div>
-      <div class="slider-row">
-        <div class="row-head"><span>ตำแหน่งบน (y)</span><span id="roiYVal"></span></div>
-        <input type="range" id="roiY" min="0" max="0.95" step="0.01">
-      </div>
-      <div class="slider-row">
-        <div class="row-head"><span>ความกว้าง (w)</span><span id="roiWVal"></span></div>
-        <input type="range" id="roiW" min="0.05" max="1" step="0.01">
-      </div>
-      <div class="slider-row">
-        <div class="row-head"><span>ความสูง (h)</span><span id="roiHVal"></span></div>
-        <input type="range" id="roiH" min="0.05" max="1" step="0.01">
-      </div>
 
       <h3 style="margin-top:1.5rem;">ความไวในการตรวจจับ</h3>
       <p class="hint" style="margin-top:0;">
@@ -103,4 +100,5 @@
   </div>
 </div>
 
+<script src="/static/js/detect-box.js"></script>
 <script src="/static/js/calibrate.js"></script>

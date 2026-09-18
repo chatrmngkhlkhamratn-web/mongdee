@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS products (
     process TEXT,
     story TEXT,
     video_url TEXT,
+    video_link TEXT,
     thumbnail_path TEXT,
     cover_image_path TEXT,
     video_path TEXT,
@@ -67,6 +68,7 @@ def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
         _ensure_column(conn, "products", "video_url", "TEXT")
+        _ensure_column(conn, "products", "video_link", "TEXT")
         _ensure_column(conn, "products", "cover_image_path", "TEXT")
         _ensure_column(conn, "products", "video_path", "TEXT")
         _ensure_column(conn, "products", "price", "REAL")
@@ -100,31 +102,59 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 def create_product(
     name, category, origin, material, process, story, video_url, thumbnail_path,
     price=None, production_date=None, expiry_date=None, embeddings=None,
-    embedding_version=None,
+    embedding_version=None, video_link=None, frame_image_paths=None,
 ) -> int:
     if embedding_version is None:
         embedding_version = config.EMBED_VERSION
     with get_conn() as conn:
         cur = conn.execute(
-            """INSERT INTO products (name, category, origin, material, process, story, video_url, thumbnail_path,
-                                      price, production_date, expiry_date, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (name, category, origin, material, process, story, video_url, thumbnail_path,
+            """INSERT INTO products (name, category, origin, material, process, story, video_url, video_link,
+                                      thumbnail_path, price, production_date, expiry_date, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, category, origin, material, process, story, video_url, video_link, thumbnail_path,
              price, production_date, expiry_date, time.time()),
         )
         product_id = cur.lastrowid
         # Enrollment is one transaction: never leave a product with only a
         # partial set of reference views after a failed write.
         if embeddings is not None:
+            # frame_image_paths (when given) is positionally parallel to
+            # embeddings — one saved angle photo per training embedding, in
+            # capture order, so the popup's spin viewer can play them back
+            # as a 360-style sequence (see get_product_frames).
+            paths = frame_image_paths if frame_image_paths is not None else [None] * len(embeddings)
             conn.executemany(
                 "INSERT INTO product_embeddings (product_id, embedding, image_path, version, created_at) VALUES (?, ?, ?, ?, ?)",
-                [(product_id, json.dumps(vector), None, embedding_version, time.time()) for vector in embeddings],
+                [(product_id, json.dumps(vector), path, embedding_version, time.time())
+                 for vector, path in zip(embeddings, paths)],
             )
         return product_id
 
 
+def get_product_frames(product_id: int) -> list[str]:
+    """The saved angle photos for a product's training embeddings, in
+    capture order (row id order) — the frame sequence for the 360 spin
+    viewer. Empty for products enrolled before frame images were kept."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT image_path FROM product_embeddings WHERE product_id = ? AND image_path IS NOT NULL ORDER BY id",
+            (product_id,),
+        ).fetchall()
+    return [r["image_path"] for r in rows]
+
+
+def product_out_fields(row) -> dict:
+    """dict(row) plus the derived fields ProductOut needs beyond the raw
+    products table columns — the single place every ProductOut(**...) call
+    site should build its kwargs from, so new derived fields land everywhere
+    at once."""
+    data = dict(row)
+    data["spin_frames"] = get_product_frames(data["id"])
+    return data
+
+
 _EDITABLE_PRODUCT_FIELDS = {
-    "name", "category", "origin", "material", "process", "story", "video_url",
+    "name", "category", "origin", "material", "process", "story", "video_url", "video_link",
     "price", "production_date", "expiry_date",
 }
 

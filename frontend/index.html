@@ -10,8 +10,12 @@
 <body>
   <main class="kiosk">
     <section class="cam-pane" aria-label="กล้องสแกนสินค้า">
-      <img id="kioskCamera" src="/api/camera/stream" alt="ภาพสดจากกล้องสำหรับสแกนสินค้า">
-      <div class="detect-box" id="detectBox"><span class="detect-label" id="detectLabel"></span></div>
+      <div class="cam-frame" id="camFrame">
+        <div class="cam-crop" id="camCrop">
+          <img id="kioskCamera" src="/api/camera/stream" alt="ภาพสดจากกล้องสำหรับสแกนสินค้า">
+          <div class="detect-box" id="detectBox"><span class="detect-label" id="detectLabel"></span></div>
+        </div>
+      </div>
       <div class="status-badge" id="statusBadge" role="status">กำลังเชื่อมต่อ…</div>
       <span class="cam-hint">หยิบสินค้าขึ้นมาให้กล้องเห็นในกรอบ</span>
     </section>
@@ -37,6 +41,7 @@
   <button type="button" id="muteBtn" class="mute-btn" aria-label="เปิด/ปิดเสียง"></button>
 
   <script src="/static/js/detect-box.js"></script>
+  <script src="/static/js/spin-viewer.js"></script>
   <script src="/static/js/kiosk.js"></script>
 </body>
 </html>

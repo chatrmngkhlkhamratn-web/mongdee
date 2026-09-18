@@ -32,6 +32,7 @@ const context = vm.createContext({
   fetch: async () => ({ ok: true, json: async () => products }),
   Intl, console,
 });
+vm.runInContext(fs.readFileSync('frontend/static/js/spin-viewer.js', 'utf8'), context);
 vm.runInContext(fs.readFileSync('frontend/static/js/products.js', 'utf8'), context);
 
 (async () => {
